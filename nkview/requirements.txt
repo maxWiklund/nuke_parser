@@ -1,0 +1,3 @@
+networkx
+nk_parser
+pyside_setup_macro @ git+https://github.com/maxWiklund/PysideSetupMacro.git@d5a900d44c4419ee7e7d80febf1538adb07d42ef

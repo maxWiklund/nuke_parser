@@ -1,0 +1,192 @@
+#! /mock/path/to/nuke -nx
+version 14.0 v6
+define_window_layout_xml {<?xml version="1.0" encoding="UTF-8"?>
+<layout version="1.0">
+    <window x="0" y="0" w="3838" h="2090" screen="0">
+        <splitter orientation="1">
+            <split size="40"/>
+            <dock id="" hideTitles="1" activePageId="Toolbar.1">
+                <page id="Toolbar.1"/>
+            </dock>
+            <split size="3175" stretch="1"/>
+            <splitter orientation="2">
+                <split size="1202"/>
+                <dock id="" activePageId="uk.co.thefoundry.scripteditor.1">
+                    <page id="Viewer.1"/>
+                    <page id="uk.co.thefoundry.scripteditor.1"/>
+                </dock>
+                <split size="845"/>
+                <dock id="" activePageId="DAG.1">
+                    <page id="DAG.1"/>
+                    <page id="Curve Editor.1"/>
+                    <page id="DopeSheet.1"/>
+                    <page id="DAG.2"/>
+                    <page id="DAG.3"/>
+                </dock>
+            </splitter>
+            <split size="615"/>
+            <dock id="" activePageId="Properties.1">
+                <page id="Properties.1"/>
+                <page id="uk.co.thefoundry.backgroundrenderview.1"/>
+                <page id="Scenegraph.1"/>
+            </dock>
+        </splitter>
+    </window>
+</layout>
+}
+Root {
+ inputs 0
+ name /path/to/nested_group.nk
+ first_frame 1001
+ last_frame 1100
+ fps 25
+ format "4096 2160 0 0 4096 2160 1 4K_DCP"
+ proxy_type scale
+ proxy_format "1024 778 0 0 1024 778 1 1K_Super_35(full-ap)"
+ colorManagement OCIO
+ defaultViewerLUT "OCIO LUTs"
+ workingSpaceLUT scene_linear
+ monitorLut "sRGB (ACES)"
+ monitorOutLUT "Rec.709 (ACES)"
+ int8Lut matte_paint
+ int16Lut texture_paint
+ logLut compositing_log
+ floatLut scene_linear
+ addUserKnob {20 Stem +INVISIBLE}
+ addUserKnob {1 _STEM_WORKSPACE_DATA}
+}
+Grade {
+ inputs 0
+ name Grade1
+ xpos -537
+ ypos -379
+}
+push 0
+Group {
+ inputs 2
+ name Group1
+ xpos -782
+ ypos -221
+}
+ Input {
+  inputs 0
+  name Input3
+  xpos -2026
+  ypos -383
+  number 2
+ }
+ Input {
+  inputs 0
+  name Input2
+  xpos -1761
+  ypos -383
+  number 1
+ }
+ Grade {
+  name Grade1
+  tile_color 0x2f71ffff
+  gl_color 0xff00ff
+  xpos -1761
+  ypos -343
+ }
+ MergeExpression {
+  inputs 2
+  expr0 abs(Ar-Br)
+  expr1 abs(Ag-Bg)
+  expr2 abs(Ab-Bb)
+  name MergeExpression1
+  xpos -2026
+  ypos -343
+ }
+ Input {
+  inputs 0
+  name Input1
+  xpos -1148
+  ypos -385
+ }
+ Grade {
+  name Grade2
+  tile_color 0xff000000
+  xpos -1148
+  ypos -345
+ }
+ Grade {
+  name Grade3
+  tile_color 0xff000000
+  xpos -1367
+  ypos -151
+ }
+push 0
+push 0
+push 0
+ Group {
+  inputs 4
+  name Group1
+  selected true
+  xpos -1561
+  ypos -202
+ }
+  Input {
+   inputs 0
+   name Input1
+   xpos -1547
+   ypos -313
+  }
+  Grade {
+   name Grade4
+   xpos -1547
+   ypos -273
+  }
+  Input {
+   inputs 0
+   name Input2
+   xpos -1675
+   ypos -298
+   number 1
+  }
+  Grade {
+   name Grade5
+   xpos -1675
+   ypos -258
+  }
+  Grade {
+   name Grade6
+   xpos -1675
+   ypos -232
+  }
+  Grade {
+   name Grade7
+   xpos -1675
+   ypos -206
+  }
+  Grade {
+   name Grade8
+   xpos -1675
+   ypos -180
+  }
+  Merge2 {
+   inputs 2
+   name Merge1
+   xpos -1579
+   ypos -138
+  }
+  Output {
+   name Output1
+   xpos -1579
+   ypos -38
+  }
+ end_group
+ Output {
+  name Output1
+  xpos -1367
+  ypos -51
+ }
+end_group
+push 0
+push 0
+Merge2 {
+ inputs 2+1
+ name Merge1
+ xpos -587
+ ypos -62
+}
