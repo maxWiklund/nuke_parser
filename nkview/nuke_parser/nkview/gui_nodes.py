@@ -349,7 +349,7 @@ class BackdropNode(QtWidgets.QGraphicsRectItem):
         painter.drawText(
             name_rect,
             QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter,
-            self.nk_node.name(),
+            self.nk_node.nodeName(),
         )
 
         font = QtGui.QFont()
@@ -506,7 +506,7 @@ class GroupNode(DagNode):
 
     def name(self) -> str:
         """Get node name."""
-        return self.nk_node.name()
+        return self.nk_node.nodeName()
 
 
 GuiNode = Union[DagNode, BackdropNode, StickyNoteNode]

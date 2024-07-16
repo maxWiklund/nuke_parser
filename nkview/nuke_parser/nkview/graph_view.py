@@ -19,6 +19,7 @@ from typing import List, Optional, Union
 from nuke_parser.nkview.gui_nodes import GroupNode, GuiNode
 from nuke_parser.nkview.navbar import NavigationBar
 from nuke_parser.nkview.qt import QtCore, QtGui, QtWidgets
+from nuke_parser.nkview.utils import qt_cursor
 from nuke_parser.parser import parseNk
 
 INT_MIN = -21474836
@@ -182,6 +183,7 @@ class _NkGraphView(QtWidgets.QGraphicsView):
 
         self.fitInView(box, QtCore.Qt.KeepAspectRatio)
 
+    @qt_cursor
     def loadNk(self, file_path: str) -> None:
         """Load nuke script in graph view.
 

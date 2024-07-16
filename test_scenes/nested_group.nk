@@ -190,3 +190,13 @@ Merge2 {
  xpos -587
  ypos -62
 }
+ColorCorrect {
+inputs 0
+saturation 0.9
+gamma {1.58 1.18 1.18 1.18}
+gain {4.9 2.9 2 2.9}
+shadows.gamma 1.02
+midtones.gamma 1.44
+midtones.gain {0.8999999762 0.6299999952 0.25 1}
+name ColorCorrect20
+}

@@ -45,7 +45,7 @@ class NodeItem(QtGui.QStandardItem):
 
         """
         if role == QtCore.Qt.ItemDataRole.DisplayRole:
-            return self.node.name()
+            return self.node.nodeName()
         elif role == NodePathRole:
             return self.node.path()
         elif role == NodeClassRole:

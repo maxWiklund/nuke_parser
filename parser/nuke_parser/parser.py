@@ -32,7 +32,7 @@ _BRANCH_STACK_RE = re.compile(r"set (?P<key>\w+) \[stack \d\]")  # set
 _PUSH_RE = re.compile(r"push \$(?P<key>\w+)")
 _VERSION_RE = re.compile(r"version[ ]+(?P<version>[\d\.]+([ ]v\d)?)")
 _CLONE_RE = re.compile(r"clone \$(?P<key>\w+)\s\{")
-_NODE_KNOB_RE = re.compile(r"^\s*(?P<key>[\w_]+)[ ]+(?P<value>(:?\"|\w|\{|-|/).*)")
+_NODE_KNOB_RE = re.compile(r"^\s*(?P<key>[\w_\.]+)[ ]+(?P<value>(:?\"|\w|\{|-|/).*)")
 
 
 class Node:
@@ -94,6 +94,10 @@ class Node:
             Node name.
 
         """
+        return self._knobs.get("name", "")
+
+    def nodeName(self) -> str:
+        """Name of node. Used in gui."""
         return self._knobs.get("name", "") if self.Class() != "Root" else "Root"
 
     def fullName(self) -> str:
@@ -257,7 +261,7 @@ class Node:
         path = ""
         while node:
             # The name of Root is the file path. We don't want that.
-            name = node.name() if node.Class() != "Root" else "Root"
+            name = node.nodeName()
             path = "/" + name + path
             node = node.parent()
         return path + self._clone_suffix

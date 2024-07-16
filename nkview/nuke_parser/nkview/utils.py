@@ -11,11 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import annotations
+
 import copy
 import json
 import logging
 import os
-from typing import List
+from typing import Any, Callable, List
+
+from nuke_parser.nkview.qt import QtCore, QtWidgets
 
 LOG = logging.getLogger(__name__)
 
@@ -61,3 +65,34 @@ def recentlyOpened() -> List[str]:
         return []
     with open(_NKVIEW_SETTINGS, "r") as f:
         return copy.deepcopy(json.load(f).get("recently_opened", []))
+
+
+class WaitCursorContext(object):
+    """Qt working cursor context."""
+
+    def __enter__(self) -> WaitCursorContext:
+        """Start Working cursor."""
+        QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Restore cursor."""
+        QtWidgets.QApplication.restoreOverrideCursor()
+
+
+def qt_cursor(func: Callable[[Any], Any]) -> Callable[[Any], Any]:
+    """Decorator to add Qt cursor wheel on function call.
+
+    Args:
+        func: Function to decorate.
+
+    Returns:
+        Wrapper function.
+
+    """
+    # pylint: disable=missing-return-doc
+    def wrapper(*args, **kwargs) -> Any:
+        with WaitCursorContext():
+            return func(*args, **kwargs)
+
+    return wrapper

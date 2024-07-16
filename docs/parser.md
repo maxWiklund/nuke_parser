@@ -12,13 +12,11 @@ root = parseNk("../test_scenes/nested_group.nk")
 # iterate over all nodes.
 for node in root.allNodes():
     ...
-# Important note.
-# `node.name()` Will not return the file path but rather the name of the node (Root).
-root.name()
-# out: "Root"
 
-root.knob("name")
-# out: "/path/to/nested_group.nk"
+# Get knob values
+print(root.knob("first_frame"))
+# out: 1001
+
 
 ```
 
