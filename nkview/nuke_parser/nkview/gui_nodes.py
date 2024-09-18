@@ -20,7 +20,7 @@ from typing import Dict, List, Optional, Tuple, Type, Union
 import networkx as nx
 
 from nuke_parser.nkview import constants
-from nuke_parser.nkview.qt import QtCore, QtGui, QtWidgets
+from nuke_parser.nkview.qt import QtCore, QtGui, QtWidgets, PYSIDE6
 from nuke_parser.parser import Node
 from nuke_parser.stack import Stack
 
@@ -66,17 +66,18 @@ class Shape:
     selected: QtGui.QPolygonF  # Polygon to draw selected node.
 
 
-def _createShape(points: Tuple[Tuple[float, float], ...]) -> Shape:
+def _createShape(points: Tuple[Tuple[float, float], ...], scale: float = 1.0) -> Shape:
     """Create shape object from node points
 
     Args:
         points: 2D node vertices of shape.
+        scale: Vertical scale of node shape.
 
     """
     outline = QtGui.QPolygonF()
     selected = QtGui.QPolygonF()
 
-    for p in [QtCore.QPointF(*p) * SCALE for p in points]:
+    for p in [QtCore.QPointF(p[0] * SCALE, p[1] * (SCALE * scale)) for p in points]:
         outline.append(p)
         selected.append(p)
 
@@ -95,30 +96,39 @@ def _createShape(points: Tuple[Tuple[float, float], ...]) -> Shape:
     return Shape(outline, outline_path, selected)
 
 
-def shapeFromClass(node: Node) -> Shape:
-    """Get shape class from node."""
+def shapeFromClass(node: Node, scale: float = 1.0) -> Shape:
+    """Get shape class from node.
+
+    Args:
+        node: Node to get shape for.
+        scale: Vertical scale of node shape.
+
+    Returns:
+        Shape of node.
+
+    """
 
     if node.isGizmo():
-        return _createShape(constants.GIZMO_SHAPE)
+        return _createShape(constants.GIZMO_SHAPE, scale)
 
     class_name = node.Class()
     if class_name in ("Scene", "GeoScene", "Camera3"):
         return _createShape(constants.SCENE_3D_SHAPE)
     elif class_name in ("CameraTrackerPointCloud", "ModelBuilder"):
-        return _createShape(constants.GEO_SHAPE)
+        return _createShape(constants.GEO_SHAPE, scale)
     elif class_name in ("Viewer", "Switch"):
-        return _createShape(constants.VIEWER_SHAPE)
+        return _createShape(constants.VIEWER_SHAPE, scale)
     elif class_name == "Read":
         return _createShape(constants.READ_SHAPE)
     elif class_name == "Group":
-        return _createShape(constants.GROUP_SHAPE)
+        return _createShape(constants.GROUP_SHAPE, scale)
     elif class_name == "Output":
-        return _createShape(constants.OUTPUT_SHAPE)
+        return _createShape(constants.OUTPUT_SHAPE, scale)
     elif class_name == "Input":
-        return _createShape(constants.INPUT_SHAPE)
+        return _createShape(constants.INPUT_SHAPE, scale)
     elif class_name == "Dot":
         return _createShape(constants.DOT_SHAPE)
-    return _createShape(constants.BASE_SHAPE)
+    return _createShape(constants.BASE_SHAPE, scale)
 
 
 def nukeColorToRgb(num: str) -> QtGui.QColor:
@@ -303,11 +313,11 @@ class BackdropNode(QtWidgets.QGraphicsRectItem):
             QtCore.QRect(
                 0,
                 0,
-                self.nk_node.knob("bdwidth"),
-                self.nk_node.knob("bdheight"),
+                self.nk_node.knob("bdwidth", 0),
+                self.nk_node.knob("bdheight", 0),
             )
         )
-        z_value = (self.nk_node.knob("z_order") or 0) / 10
+        z_value = (self.nk_node.knob("z_order") or 0) / 1000
         self.setZValue(z_value)
 
         color_text = self.nk_node.knob("tile_color")
@@ -352,6 +362,41 @@ class BackdropNode(QtWidgets.QGraphicsRectItem):
             self.nk_node.nodeName(),
         )
 
+        # Draw corners
+
+        top_left = self.rect().topLeft() + QtCore.QPointF(1, 1)
+        top_right = self.rect().topRight() + QtCore.QPointF(-1, 1)
+        bottom_right = self.rect().bottomRight() + QtCore.QPointF(-1, -1)
+        bottom_left = self.rect().bottomLeft() + QtCore.QPointF(1, -1)
+        poyls = (
+            [
+                top_left,
+                top_left + QtCore.QPointF(offset, 0),
+                top_left + QtCore.QPointF(0, offset),
+            ],  # Top left
+            [
+                top_right,
+                top_right + QtCore.QPointF(0, offset),
+                top_right + QtCore.QPointF(-offset, 0),
+            ],  # Top right
+            [
+                bottom_right,
+                bottom_right + QtCore.QPointF(-offset, 0),
+                bottom_right + QtCore.QPointF(0, -offset),
+            ],  # Bottom right
+            [
+                bottom_left,
+                bottom_left + QtCore.QPointF(0, -offset),
+                bottom_left + QtCore.QPointF(offset, 0),
+            ],
+        )
+        painter.save()
+        painter.setBrush(self.brush().color().lighter(130))
+        painter.setPen(QtCore.Qt.NoPen)
+        for points in poyls:
+            painter.drawPolygon(points)
+        painter.restore()
+
         font = QtGui.QFont()
         font.setPointSize(self.nk_node.knob("note_font_size", 14) * 0.5)
         painter.save()
@@ -383,6 +428,7 @@ class DagNode(QtWidgets.QGraphicsItem):
     def __init__(self, nk_node: Node):
         super(DagNode, self).__init__()
         self._shape_cls = shapeFromClass(nk_node)
+
         self.nk_node = nk_node
         if nk_node.Class() != "Root":
             self.setZValue(1)
@@ -397,11 +443,17 @@ class DagNode(QtWidgets.QGraphicsItem):
             else defaultNodeColor(self.nk_node.Class())
         )
 
+    def nodeText(self) -> str:
+        return self.nk_node.name()
+
+    def nodeShapePointsInWorldSpace(self) -> List[QtCore.QPointF]:
+        return [self.pos() + point for point in self._shape_cls.polygon]
+
     def boundingRect(self) -> QtCore.QRectF:
         """Get bounding rect of node."""
         font = QtGui.QFont()
         fm = QtGui.QFontMetrics(font)
-        width = fm.horizontalAdvance(self.nk_node.knob("name"))
+        width = fm.horizontalAdvance(self.nodeText())
         rect = self._shape_cls.polygon.boundingRect()
         if width > rect.width():
             delta = width - rect.width()
@@ -451,9 +503,9 @@ class DagNode(QtWidgets.QGraphicsItem):
             painter.drawPolygon(self._shape_cls.selected)
             painter.restore()
 
-        if self.nk_node.knob("disable"):
+        if self.nk_node.disable():
             painter.save()
-            painter.setPen(QtGui.QPen(QtCore.Qt.black, 1))
+            painter.setPen(QtGui.QPen(QtCore.Qt.black, 3))
             rect = self._shape_cls.polygon.boundingRect()
 
             lines = [
@@ -461,6 +513,23 @@ class DagNode(QtWidgets.QGraphicsItem):
                 QtCore.QLineF(rect.topRight(), rect.bottomLeft()),
             ]
             painter.drawLines(lines)
+            painter.restore()
+
+        # Draw clone icon
+        if self.nk_node.isClone():
+            top_left = self._shape_cls.polygon.boundingRect().topLeft()
+            text_rect = QtCore.QRectF(top_left, top_left + QtCore.QPointF(10, 10))
+            painter.save()
+            painter.setPen(QtGui.QPen(QtCore.Qt.black, 1))
+            font = QtGui.QFont()
+            font.setPixelSize(9)
+            painter.setFont(font)
+            painter.setBrush(QtGui.QColor(208, 112, 80))
+            painter.drawEllipse(text_rect)
+            painter.setPen(QtCore.Qt.white)
+            painter.drawText(
+                text_rect, QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter, "c"
+            )
             painter.restore()
 
         text_rect = QtCore.QRectF(self.boundingRect())
@@ -478,10 +547,12 @@ class DagNode(QtWidgets.QGraphicsItem):
                 else QtCore.Qt.black
             )
             painter.setPen(text_color)
+            font = QtGui.QFont()
+            font.setPointSize(self.nk_node.knob("note_font_size", 10) * 0.5)
 
             painter.drawText(
                 text_rect,
-                self.nk_node.knob("name"),
+                self.nodeText(),
                 QtCore.Qt.AlignHCenter | vlayout,
             )
         painter.restore()
@@ -578,6 +649,18 @@ class NkScene(QtWidgets.QGraphicsScene):
                     gui_node,
                     gui_node.nk_node.Class() == "Viewer",
                 )
+                self.addItem(line)
+
+            # Add clone line.
+            clone_source_nk = gui_node.nk_node._source_node
+            if clone_source_nk and node_map[clone_source_nk.path()]:
+                source = node_map[clone_source_nk.path()]
+
+                line = QtWidgets.QGraphicsLineItem(
+                    QtCore.QLineF(gui_node.center(), source.center())
+                )
+                pen = QtGui.QPen(QtGui.QColor(211, 110, 75), 2)
+                line.setPen(pen)
                 self.addItem(line)
 
     @staticmethod

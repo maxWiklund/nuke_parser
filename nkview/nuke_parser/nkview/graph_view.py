@@ -14,16 +14,36 @@
 from __future__ import annotations
 
 import sys
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Tuple
 
 from nuke_parser.nkview.gui_nodes import GroupNode, GuiNode
 from nuke_parser.nkview.navbar import NavigationBar
 from nuke_parser.nkview.qt import QtCore, QtGui, QtWidgets
 from nuke_parser.nkview.utils import qt_cursor
-from nuke_parser.parser import parseNk
+from nuke_parser.parser import parseNk, Node
 
-INT_MIN = -21474836
-INT_MAX = 21474836
+INT_MAX = sys.maxsize // 2
+INT_MIN = ~sys.maxsize // 2
+
+
+class _PrivateApi:
+    """Class to expose private methods of the node graph.
+    Use it on your own risk."""
+
+    def __init__(self, node_view: _NkGraphView):
+        self._node_view = node_view
+
+    def addGraphicsItemToScene(self, item: QtWidgets.QGraphicsItem) -> None:
+        self._node_view.scene().addItem(item)
+
+    def removeGraphicsItemFromScene(self, item):
+        self._node_view.scene().removeItem(item)
+
+    def selectedItems(self) -> List[QtWidgets.QGraphicsItem]:
+        return self._node_view.scene().selectedItems()
+
+    def guiNodeFromPath(self, path: str) -> Optional[GuiNode]:
+        return self._node_view._scene_map.get(path)
 
 
 class _NkGraphView(QtWidgets.QGraphicsView):
@@ -192,6 +212,8 @@ class _NkGraphView(QtWidgets.QGraphicsView):
 
         """
         if not file_path.endswith(".nk"):
+            self.setScene(QtWidgets.QGraphicsScene())
+            self.sceneLoaded.emit(None)
             return
 
         self._scene_map = {}
@@ -299,6 +321,8 @@ class NukeNodeGraphWidget(QtWidgets.QWidget):
         layout.addWidget(self._view)
         self.setLayout(layout)
 
+        self._private_api = _PrivateApi(self._view)
+
         self._view.sceneChanged.connect(self.nav_bar.addItem)
         self._view.sceneLoaded.connect(self._sceneLoadedCallback)
         self._view.sceneLoaded.connect(self.sceneLoaded.emit)
@@ -308,6 +332,20 @@ class NukeNodeGraphWidget(QtWidgets.QWidget):
 
         self.loadNk = self._view.loadNk
         self.frameSelected = self._view.frameSelected
+
+    def privateApi(self) -> _PrivateApi:
+        """API to interact with `QGraphicsScene` and `QGraphicsView`."""
+        return self._private_api
+
+    def selectedNodes(self) -> Tuple[Node, ...]:
+        """Get selected nodes as parser nodes."""
+        return tuple(
+            [
+                node.nk_node
+                for node in self._view.scene().selectedItems()
+                if isinstance(node, GuiNode)
+            ]
+        )
 
     def clearSelection(self) -> None:
         self._view.scene().clearSelection()

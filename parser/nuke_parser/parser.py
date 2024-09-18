@@ -35,6 +35,37 @@ _CLONE_RE = re.compile(r"clone \$(?P<key>\w+)\s\{")
 _NODE_KNOB_RE = re.compile(r"^\s*(?P<key>[\w_\.]+)[ ]+(?P<value>(:?\"|\w|\{|-|/).*)")
 
 
+_GROUP_NODE_CLASSES = ("Group", "Gizmo")
+_ROOT_NODE_CLASSES = ("Root", "LiveGroupInfo")
+
+_USER_KNOB_RE = re.compile(
+    r"\{\s*(?P<type>\d+)\s+(?P<name>[\w_]+)"
+    r'(?:\s+l\s+(?P<label>(?:"([^"]+)")|([\w_:;]+)))?'
+    r'(?:\s+t\s+"(?P<tooltip>[^"]+)")?'
+    r"(?:\s+\+DISABLED)?"
+    r"(?:\s+\+INVISIBLE)?"
+    r"(?:\s+-STARTLINE)?"
+    r"(?:\s+M\s+\{\s*(?P<enum_items>[^}]+)\s*\})?"
+    r"(?:\s+-STARTLINE)?"
+    r"(?:\s+\+INVISIBLE)?"
+    r"(?:\s+T\s+(?P<value>[\w_]+))?"
+    r"\s*\}"
+)
+
+
+_SUPPORTED_KNOB_TYPES = (
+    1,
+    2,
+    3,
+    4,
+    6,
+    7,
+    8,
+    26,
+)
+# https://learn.foundry.com/nuke/developers/63/ndkdevguide/knobs-and-handles/knobtypes.html#knobs-knobtypes-text-knob
+
+
 class Node:
     """Class representing nuke nodes."""
 
@@ -60,6 +91,13 @@ class Node:
         self._clone_suffix = self._knobs.get("__clone__", "")
         self._knobs.pop("__clone__", None)  # Remove clone suffix.
 
+        # Store source clone node.
+        self._source_node = self._knobs.get("__source__")
+        self._clones = []
+        if self._source_node:
+            self._source_node._clones.append(self)
+        self._knobs.pop("__source__", None)
+
     def __repr__(self) -> str:
         """Get node repr.
 
@@ -68,6 +106,20 @@ class Node:
 
         """
         return f"{type(self).__name__}(name='{self.name()}', Class='{self._class}')"
+
+    def isClone(self) -> bool:
+        return bool(self._source_node or self._clones)
+
+    def setDisable(self, value: bool) -> None:
+        self._knobs["disable"] = value
+
+        if self._source_node:
+            self._source_node.setDisable(value)
+        for node in self._clones:
+            node._knobs["disable"] = value
+
+    def disable(self):
+        return self._knobs.get("disable", False)
 
     def Class(self) -> str:
         """Get class type of node.
@@ -86,6 +138,12 @@ class Node:
 
         """
         return self._parent
+
+    def root(self):
+        node = self
+        while node.parent():
+            node = node.parent()
+        return node
 
     def name(self) -> str:
         """Get node name.
@@ -241,14 +299,23 @@ class Node:
         for child in self.children():
             yield from travers(child)
 
-    def allNodes(self) -> Tuple[Node]:
+    def allNodes(self, filters: Optional[Tuple[str, ...]] = tuple()) -> Tuple[Node]:
         """Get all child nodes.
 
+        Args:
+            filters: Specific Class names to filter out.
+
         Returns:
-            All child nodes.
+            All child nodes if no filter was used, else only nodes that match classes in filters.
 
         """
-        return tuple(self._allNodes())
+        return tuple(
+            [
+                node
+                for node in self._allNodes()
+                if not filters or node.Class() in filters
+            ]
+        )
 
     def path(self) -> str:
         """Get node path from node.
@@ -283,6 +350,35 @@ def decodeKnob(value: str) -> Any:
         return result if not isinstance(result, dict) else value
     except json.JSONDecodeError:
         return value
+
+
+def parseUserKnob(knobs: Dict[str, Any], string: str) -> None:
+    """Parse user knob.
+
+    Args:
+        knobs: Existing knobs (dict to update).
+        string: Command to parse.
+
+    """
+    match = _USER_KNOB_RE.search(string)
+    if not match:
+        return
+
+    groups = match.groupdict()
+    knob_type = int(groups.get("type", 0))
+    knob_name = groups.get("name")
+    if knob_type not in _SUPPORTED_KNOB_TYPES:
+        return
+    if knob_type in (1, 2, 26):
+        knobs[knob_name] = groups.get("value") or ""
+    elif knob_type in (3, 6):
+        knobs[knob_name] = int(groups.get("value") or 0)
+    elif knob_type == 4:
+        items_string = groups.get("enum_items")
+        knobs[knob_name] = re.split(r"\s+", items_string)[0]
+
+    elif knob_type in (7, 8):
+        knobs[knob_name] = float(groups.get("value") or 0)
 
 
 def _parseNk(file_path: str, gizmos: Optional[dict] = None) -> Node:
@@ -331,12 +427,11 @@ def _parseNk(file_path: str, gizmos: Optional[dict] = None) -> Node:
             main_stack.push(node_map.get(key))
             continue
         elif "end_group" in line:
+            node_to_find = parents_stack.peek()
             node = main_stack.pop()
-            while node and (
-                node.Class() not in ("Group", "Gizmo") and not main_stack.empty()
-            ):
+            while node != node_to_find and not main_stack.empty():
                 node = main_stack.pop()
-            main_stack.push(node)
+            main_stack.push(node_to_find)
             parents_stack.pop()
             continue
 
@@ -345,9 +440,11 @@ def _parseNk(file_path: str, gizmos: Optional[dict] = None) -> Node:
             node_to_clone = node_map[key]
             class_ = node_to_clone.Class()
             knobs = copy.deepcopy(node_to_clone._knobs)
+            knobs.pop("inputs", None)
 
             clone_map[key] += 1
             knobs["__clone__"] = f"_{clone_map[key]}"
+            knobs["__source__"] = node_to_clone
 
         elif _NODE_OPEN_RE.search(line) and not class_:
             class_ = _NODE_OPEN_RE.search(line).group("type")
@@ -356,8 +453,6 @@ def _parseNk(file_path: str, gizmos: Optional[dict] = None) -> Node:
             if class_ == "Gizmo":
                 knobs["name"] = os.path.splitext(os.path.basename(file_path))[0]
 
-        elif "addUserKnob" in line:
-            continue
         elif _NODE_KNOB_RE.search(line):
             match = _NODE_KNOB_RE.search(line)
             value = match.group("value")
@@ -380,6 +475,12 @@ def _parseNk(file_path: str, gizmos: Optional[dict] = None) -> Node:
                     line = next(lines)
                     count += line.count("{") - line.count("}")
                     string += line
+
+            if match.group("key") == "addUserKnob" and os.getenv(
+                "NK_PARSER_EXPERIMENTAL"
+            ):
+                parseUserKnob(knobs, string)
+                continue
             knobs[match.group("key")] = decodeKnob(string)
             continue
 
@@ -389,8 +490,6 @@ def _parseNk(file_path: str, gizmos: Optional[dict] = None) -> Node:
             knobs = {}
             for index in range(eval(str(nk_node.knob("inputs")))):
                 node = main_stack.pop()
-                if not node:
-                    continue
 
                 # Add connections.
                 nk_node.setInput(index, node)
@@ -401,17 +500,41 @@ def _parseNk(file_path: str, gizmos: Optional[dict] = None) -> Node:
                 )
                 nk_node._is_gizmo = True
 
+            if nk_node.Class() == "LiveGroup":
+                _parseLiveGroup(nk_node, gizmos)
+
             main_stack.push(nk_node)
-            if nk_node.Class() == "Root":
+            if nk_node.Class() in _ROOT_NODE_CLASSES:
                 parents_stack.push(nk_node)
                 continue
 
             parents_stack.peek()._addChild(nk_node)
             # Deal with groups
-            if nk_node.Class() in ("Group", "Gizmo"):
+            if nk_node.Class() in _GROUP_NODE_CLASSES or (
+                nk_node.Class() == "LiveGroup" and nk_node.knob("modified")
+            ):
                 parents_stack.push(nk_node)
 
     return parents_stack.pop() if parents_stack else Node("Root", {})
+
+
+def _parseLiveGroup(live_group: Node, gizmos: Dict[str, Node]) -> None:
+    """Parse live group and update live group with parsed output.
+
+    Args:
+        live_group: Live group node to update with parsed nuke file.
+        gizmos: Dict of parser gizmos {gizmo name: Gizmo class}.
+
+    """
+    if not live_group.knob("file"):
+        return
+
+    root = _parseNk(live_group.knob("file"), gizmos)
+    for child in root.children():
+        live_group._addChild(child)
+
+    root._children = []
+    del root
 
 
 def _gizmoPaths() -> List[str]:
