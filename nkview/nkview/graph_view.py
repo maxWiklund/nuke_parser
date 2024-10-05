@@ -13,17 +13,22 @@
 # limitations under the License.
 from __future__ import annotations
 
+import platform
 import sys
 from typing import List, Optional, Union, Tuple
 
-from nuke_parser.nkview.gui_nodes import GroupNode, GuiNode
-from nuke_parser.nkview.navbar import NavigationBar
-from nuke_parser.nkview.qt import QtCore, QtGui, QtWidgets
-from nuke_parser.nkview.utils import qt_cursor
+from nkview.gui_nodes import GroupNode, GuiNode
+from nkview.navbar import NavigationBar
+from nkview.qt import QtCore, QtGui, QtWidgets
+from nkview.utils import qt_cursor
 from nuke_parser.parser import parseNk, Node
 
 INT_MAX = sys.maxsize // 2
 INT_MIN = ~sys.maxsize // 2
+if platform.system() == "Windows":
+    # https://github.com/maxWiklund/nuke_parser/issues/1
+    INT_MAX = (2**31) - 1  # Maximum value for a signed 32-bit integer
+    INT_MIN = -(2**31)  # Minimum value for a signed 32-bit integer
 
 
 class _PrivateApi:
@@ -44,6 +49,9 @@ class _PrivateApi:
 
     def guiNodeFromPath(self, path: str) -> Optional[GuiNode]:
         return self._node_view._scene_map.get(path)
+
+    def clearSelection(self) -> None:
+        self._node_view.scene().clearSelection()
 
 
 class _NkGraphView(QtWidgets.QGraphicsView):
@@ -165,6 +173,7 @@ class _NkGraphView(QtWidgets.QGraphicsView):
         if not gui_node or not isinstance(gui_node, GroupNode):
             super().mouseDoubleClickEvent(event)
             return
+
         self.stepIntoNode(gui_node)
 
     def stepIntoNode(self, gui_node: GroupNode) -> None:
@@ -176,9 +185,18 @@ class _NkGraphView(QtWidgets.QGraphicsView):
         """
         nk_node = gui_node.nk_node
         if nk_node.children() or nk_node.Class() in ("Group", "Root"):
+            # Store last viewport position to use when exiting the group.
+            viewport_rect = self.mapToScene(self.viewport().geometry()).boundingRect()
+            self.scene().groupNode().setViewportRect(viewport_rect)
+
             self.scene().clearSelection()
             self.setScene(gui_node.getScene())
-            self.frameSelected()
+
+            rect = gui_node.viewportRect()
+            if rect:
+                self.fitInView(rect, QtCore.Qt.KeepAspectRatio)
+            else:
+                self.frameSelected()
             self.sceneChanged.emit(gui_node)
 
     def frameSelected(self) -> None:
@@ -338,7 +356,7 @@ class NukeNodeGraphWidget(QtWidgets.QWidget):
         return self._private_api
 
     def selectedNodes(self) -> Tuple[Node, ...]:
-        """Get selected nodes as parser nodes."""
+        """Get selected nodes as nk_parser nodes."""
         return tuple(
             [
                 node.nk_node
@@ -346,9 +364,6 @@ class NukeNodeGraphWidget(QtWidgets.QWidget):
                 if isinstance(node, GuiNode)
             ]
         )
-
-    def clearSelection(self) -> None:
-        self._view.scene().clearSelection()
 
     def _sceneLoadedCallback(self, root_node: GroupNode) -> None:
         """Scene loaded callback to deal with nav_bar.
@@ -367,9 +382,20 @@ class NukeNodeGraphWidget(QtWidgets.QWidget):
             node: Node to view children of.
 
         """
+        # Store the current viewport position if the user wants to set into the group again.
+        viewport_rect = self._view.mapToScene(
+            self._view.viewport().geometry()
+        ).boundingRect()
+        self._view.scene().groupNode().setViewportRect(viewport_rect)
+
         self._view.setScene(node.getScene())
         self._view.scene().clearSelection()
-        self._view.frameSelected()
+
+        rect = node.viewportRect()
+        if rect:
+            self._view.fitInView(rect, QtCore.Qt.KeepAspectRatio)
+        else:
+            self.frameSelected()
 
     def _selectionChangedCallback(self) -> None:
         """Callback to emit selection change."""
@@ -418,7 +444,10 @@ class NukeNodeGraphWidget(QtWidgets.QWidget):
         if not gui_node:
             return
 
-        if not (gui_node.nk_node.isGizmo() or gui_node.nk_node.Class() == "Group"):
+        if not (
+            gui_node.nk_node.isGizmo()
+            or gui_node.nk_node.Class() in ("Group", "LiveGroup")
+        ):
             return
         nodes = []
 

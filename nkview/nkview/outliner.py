@@ -14,7 +14,7 @@
 import re
 from typing import Any, List, Optional, Union
 
-from nuke_parser.nkview.qt import QtCore, QtGui, QtWidgets
+from nkview.qt import QtCore, QtGui, QtWidgets
 from nuke_parser.parser import Node
 
 NodePathRole = QtCore.Qt.UserRole + 1

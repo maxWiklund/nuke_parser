@@ -19,8 +19,8 @@ from typing import Dict, List, Optional, Tuple, Type, Union
 
 import networkx as nx
 
-from nuke_parser.nkview import constants
-from nuke_parser.nkview.qt import QtCore, QtGui, QtWidgets, PYSIDE6
+from nkview import constants
+from nkview.qt import QtCore, QtGui, QtWidgets, PYSIDE6
 from nuke_parser.parser import Node
 from nuke_parser.stack import Stack
 
@@ -569,7 +569,24 @@ class GroupNode(DagNode):
     def __init__(self, nk_node: Node, scene_map: Dict[str, DagNode]):
         super(GroupNode, self).__init__(nk_node)
         scene_map[nk_node.path()] = self
-        self._scene = NkScene(nk_node, scene_map)
+        self._scene = NkScene(nk_node, scene_map, self)
+        self._viewport_rect = None
+
+    def viewportRect(self) -> Union[QtCore.QRectF, None]:
+        """Returns the viewport rect from the node (The scene area that was last viewed to restore
+        the view where the user left it).
+
+        """
+        return self._viewport_rect
+
+    def setViewportRect(self, rect: QtCore.QRect) -> None:
+        """Set the viewport rect on the node (the visible rectangle of the graphics-view).
+
+        Args:
+            rect: Rect to store.
+
+        """
+        self._viewport_rect = rect
 
     def getScene(self) -> QtWidgets.QGraphicsScene:
         """Get scene from node."""
@@ -622,8 +639,9 @@ def niceInputName(index: int, Class: str) -> str:
 class NkScene(QtWidgets.QGraphicsScene):
     """Scene that performs automatic layout on any node with missing position values."""
 
-    def __init__(self, root: Node, scene_map: Dict[str, DagNode]):
+    def __init__(self, root: Node, scene_map: Dict[str, DagNode], parent: GroupNode):
         super().__init__()
+        self._group_node = parent
         node_map = {}
         self._autoLayout(list(root.children()))
 
@@ -662,6 +680,15 @@ class NkScene(QtWidgets.QGraphicsScene):
                 pen = QtGui.QPen(QtGui.QColor(211, 110, 75), 2)
                 line.setPen(pen)
                 self.addItem(line)
+
+    def groupNode(self) -> GroupNode:
+        """Get the group node (the parent node of all nodes in the graphics scene).
+
+        Returns:
+            Parent node (GUI node) of all nodes in graphics scene.
+
+        """
+        return self._group_node
 
     @staticmethod
     def _assingLevels(G: nx.DiGraph) -> Dict[int, List[Node]]:

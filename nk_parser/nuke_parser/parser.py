@@ -167,7 +167,7 @@ class Node:
         return ".".join(path)
 
     def _addChild(self, child: Node) -> None:
-        """Add child to node. This should only be called from the parser.
+        """Add child to node. This should only be called from the nk_parser.
 
         Args:
             child: Child node to add.
@@ -207,7 +207,7 @@ class Node:
         return self._class == "gizmo" or self._is_gizmo
 
     def setInput(self, i: int, node: Node) -> None:
-        """Add input to node. This should only be called from the parser.
+        """Add input to node. This should only be called from the nk_parser.
 
         Args:
             i: Input index.
@@ -386,7 +386,7 @@ def _parseNk(file_path: str, gizmos: Optional[dict] = None) -> Node:
 
     Args:
         file_path: File path to nuke script.
-        gizmos: Dict of parser gizmos {gizmo name: Gizmo class}.
+        gizmos: Dict of nk_parser gizmos {gizmo name: Gizmo class}.
 
     Returns:
         Root node of nuke scene description.
@@ -523,7 +523,7 @@ def _parseLiveGroup(live_group: Node, gizmos: Dict[str, Node]) -> None:
 
     Args:
         live_group: Live group node to update with parsed nuke file.
-        gizmos: Dict of parser gizmos {gizmo name: Gizmo class}.
+        gizmos: Dict of nk_parser gizmos {gizmo name: Gizmo class}.
 
     """
     if not live_group.knob("file"):

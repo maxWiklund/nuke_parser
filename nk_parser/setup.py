@@ -39,5 +39,5 @@ setup(
         "Programming Language :: Python :: 3.12",
         "Topic :: Text Processing",
     ],
-    description="Nuke script (nk) parser.",
+    description="Nuke script (nk) nk_parser.",
 )

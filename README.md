@@ -36,7 +36,7 @@ git clone https://github.com/maxWiklund/nuke_parser.git
 cd nuke_parser
 
 # Install nk_parser
-cd parser
+cd nk_parser
 pip install .
 # or 
 python setup.py install

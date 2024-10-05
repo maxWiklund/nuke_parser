@@ -19,7 +19,7 @@ import logging
 import os
 from typing import Any, Callable, List
 
-from nuke_parser.nkview.qt import QtCore, QtWidgets
+from nkview.qt import QtCore, QtWidgets
 
 LOG = logging.getLogger(__name__)
 

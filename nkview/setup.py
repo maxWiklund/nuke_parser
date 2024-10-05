@@ -15,11 +15,11 @@
 from pyside_setup_macro import QtBuildDevelop, QtBuildPackage
 from setuptools import find_packages, setup
 
-import nuke_parser.nkview
+import nkview
 
 setup(
     name="nkview",
-    version=nuke_parser.nkview.__version__,
+    version=nkview.__version__,
     packages=find_packages(),
     url="https://github.com/maxWiklund/nuke_parser",
     license="Apache License, Version 2.0",
@@ -40,7 +40,7 @@ setup(
         "Programming Language :: Python :: 3.12",
         "Topic :: Artistic Software",
     ],
-    entry_points={"console_scripts": ["nkview = nuke_parser.nkview.app:run"]},
-    description="Nuke script (nk) parser.",
+    entry_points={"console_scripts": ["nkview = nkview.app:run"]},
+    description="Nuke script (nk) nk_parser.",
     cmdclass={"build_py": QtBuildPackage, "develop": QtBuildDevelop},
 )

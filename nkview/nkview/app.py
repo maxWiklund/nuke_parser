@@ -18,12 +18,12 @@ import os
 import platform
 import sys
 
-import nuke_parser.nkview
-from nuke_parser.nkview import utils
-from nuke_parser.nkview.constants import QT_STYLE
-from nuke_parser.nkview.graph_view import NukeNodeGraphWidget
-from nuke_parser.nkview.outliner import OutlinerWidget
-from nuke_parser.nkview.qt import QtCore, QtGui, QtWebEngineWidgets, QtWidgets
+import nkview
+from nkview import utils
+from nkview.constants import QT_STYLE
+from nkview.graph_view import NukeNodeGraphWidget
+from nkview.outliner import OutlinerWidget
+from nkview.qt import QtCore, QtGui, QtWebEngineWidgets, QtWidgets
 from nuke_parser.parser import _parseGizmos
 
 
@@ -153,7 +153,7 @@ def run() -> None:
     args = _setupCli()
     if platform.system() == "Windows":
         # Fix app icon on taskbar on Windows.
-        app_id = f"nuke_parser.nkview.{nuke_parser.nkview.__version__}"
+        app_id = f"nkview.{nkview.__version__}"
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
 
     app = QtWidgets.QApplication(sys.argv)

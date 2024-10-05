@@ -14,9 +14,9 @@
 from dataclasses import dataclass
 from typing import List, Optional
 
-from nuke_parser.nkview.constants import SELECTED_COLOR
-from nuke_parser.nkview.gui_nodes import GroupNode
-from nuke_parser.nkview.qt import QtCore, QtGui, QtWidgets
+from nkview.constants import SELECTED_COLOR
+from nkview.gui_nodes import GroupNode
+from nkview.qt import QtCore, QtGui, QtWidgets
 
 
 @dataclass()
@@ -73,13 +73,17 @@ class NavigationBar(QtWidgets.QWidget):
         super(NavigationBar, self).leaveEvent(event)
         self.update()
 
-    def mouseDoubleClickEvent(self, event: QtGui.QMouseEvent) -> None:
-        """Process mouse double click event.
+    def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
+        """Process mouse press event.
 
         Args:
             event: Event to process.
 
         """
+        if event.button() != QtCore.Qt.MouseButton.LeftButton:
+            super(NavigationBar, self).mousePressEvent(event)
+            return
+
         for shape in self._getShapes():
             if self._cursorAbove(shape):
                 self._setTailItem(shape.node)
