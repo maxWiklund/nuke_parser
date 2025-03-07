@@ -36,7 +36,7 @@ _NODE_KNOB_RE = re.compile(r"^\s*(?P<key>[\w_\.]+)[ ]+(?P<value>(:?\"|\w|\{|-|/)
 
 
 _GROUP_NODE_CLASSES = ("Group", "Gizmo")
-_ROOT_NODE_CLASSES = ("Root", "LiveGroupInfo")
+ROOT_NODE_CLASSES = ("Root", "LiveGroupInfo")
 
 _USER_KNOB_RE = re.compile(
     r"\{\s*(?P<type>\d+)\s+(?P<name>[\w_]+)"
@@ -504,7 +504,7 @@ def _parseNk(file_path: str, gizmos: Optional[dict] = None) -> Node:
                 _parseLiveGroup(nk_node, gizmos)
 
             main_stack.push(nk_node)
-            if nk_node.Class() in _ROOT_NODE_CLASSES:
+            if nk_node.Class() in ROOT_NODE_CLASSES:
                 parents_stack.push(nk_node)
                 continue
 

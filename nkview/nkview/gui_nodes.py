@@ -21,7 +21,7 @@ import networkx as nx
 
 from nkview import constants
 from nkview.qt import QtCore, QtGui, QtWidgets, PYSIDE6
-from nuke_parser.parser import Node
+from nuke_parser.parser import Node, ROOT_NODE_CLASSES
 from nuke_parser.stack import Stack
 
 SCALE = 80
@@ -430,7 +430,7 @@ class DagNode(QtWidgets.QGraphicsItem):
         self._shape_cls = shapeFromClass(nk_node)
 
         self.nk_node = nk_node
-        if nk_node.Class() != "Root":
+        if nk_node.Class() not in ROOT_NODE_CLASSES:
             self.setZValue(1)
             self.setPos(QtCore.QPoint(self.nk_node.xpos(), self.nk_node.ypos()))
 
