@@ -309,12 +309,15 @@ class Node:
             All child nodes if no filter was used, else only nodes that match classes in filters.
 
         """
+        if not filters:
+            return tuple(self._allNodes())
+        if isinstance(filters, str):
+            filters = (filters,)
         return tuple(
-            [
-                node
-                for node in self._allNodes()
-                if not filters or node.Class() in filters
-            ]
+            node
+            for node_class in filters
+            for node in self._allNodes()
+            if node.Class() == node_class
         )
 
     def path(self) -> str:
