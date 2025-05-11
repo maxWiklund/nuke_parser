@@ -1,0 +1,86 @@
+#! /opt/install/nuke-14.0v6/libnuke-14.0.6.so -nx
+version 14.0 v6
+define_window_layout_xml {<?xml version="1.0" encoding="UTF-8"?>
+<layout version="1.0">
+    <window x="0" y="0" w="3828" h="2086" screen="0">
+        <splitter orientation="1">
+            <split size="40"/>
+            <dock id="" hideTitles="1" activePageId="Toolbar.1">
+                <page id="Toolbar.1"/>
+            </dock>
+            <split size="3165" stretch="1"/>
+            <splitter orientation="2">
+                <split size="1199"/>
+                <dock id="" activePageId="Viewer.1">
+                    <page id="Viewer.1"/>
+                </dock>
+                <split size="844"/>
+                <dock id="" activePageId="DAG.1">
+                    <page id="DAG.1"/>
+                    <page id="Curve Editor.1"/>
+                    <page id="DopeSheet.1"/>
+                </dock>
+            </splitter>
+            <split size="615"/>
+            <dock id="" activePageId="Properties.1">
+                <page id="Properties.1"/>
+                <page id="uk.co.thefoundry.backgroundrenderview.1"/>
+                <page id="Scenegraph.1"/>
+            </dock>
+        </splitter>
+    </window>
+</layout>
+}
+Root {
+ inputs 0
+ name /path/to/worksspace.nk
+ frame 1001
+ first_frame 1001
+ last_frame 1100
+ fps 25
+ format "1920 1080 0 0 1920 1080 1 HD_1080"
+ proxy_type scale
+ proxy_format "1024 778 0 0 1024 778 1 1K_Super_35(full-ap)"
+ colorManagement OCIO
+ defaultViewerLUT "OCIO LUTs"
+ workingSpaceLUT scene_linear
+ monitorLut "sRGB (ACES)"
+ monitorOutLUT "Rec.709 (ACES)"
+ int8Lut matte_paint
+ int16Lut texture_paint
+ logLut compositing_log
+ floatLut scene_linear
+}
+ReadGeo2 {
+ inputs 0
+ name ReadGeo1
+ xpos -119
+ ypos -145
+}
+Read {
+ inputs 0
+ file /path/to/file.####.exr
+ origset true
+ name Read1
+ xpos -24
+ ypos -185
+}
+DeepRead {
+ inputs 0
+ file /path/to/file.####.exr
+ origset true
+ name DeepRead1
+ xpos 56
+ ypos -104
+}
+Viewer {
+ inputs 0
+ frame 1001
+ frame_range 1001-1100
+ fps 25
+ viewerProcess "Rec.709 (ACES)"
+ name Viewer1
+ selected true
+ xpos -402
+ ypos 11
+}
