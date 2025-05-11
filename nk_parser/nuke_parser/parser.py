@@ -299,7 +299,7 @@ class Node:
         for child in self.children():
             yield from travers(child)
 
-    def allNodes(self, filters: Optional[Tuple[str, ...]] = tuple()) -> Tuple[Node]:
+    def allNodes(self, filters: Optional[Union[str,Tuple[str, ...]]] = tuple()) -> Tuple[Node, ...]:
         """Get all child nodes.
 
         Args:
@@ -309,6 +309,7 @@ class Node:
             All child nodes if no filter was used, else only nodes that match classes in filters.
 
         """
+        filters = (filters,) if isinstance(filters, str) else filters
         return tuple(
             [
                 node
