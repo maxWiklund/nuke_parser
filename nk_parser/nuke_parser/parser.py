@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import collections
 import copy
+from dataclasses import dataclass
+from enum import Enum, auto
 import functools
 import json
 import os
@@ -35,35 +37,96 @@ _CLONE_RE = re.compile(r"clone \$(?P<key>\w+)\s\{")
 _NODE_KNOB_RE = re.compile(r"^\s*(?P<key>[\w_\.]+)[ ]+(?P<value>(:?\"|\w|\{|-|/).*)")
 
 
-_GROUP_NODE_CLASSES = ("Group", "Gizmo")
+_GROUP_NODE_CLASSES = ("Group", "Gizmo", "VariableGroup")
 ROOT_NODE_CLASSES = ("Root", "LiveGroupInfo")
 
-_USER_KNOB_RE = re.compile(
-    r"\{\s*(?P<type>\d+)\s+(?P<name>[\w_]+)"
-    r'(?:\s+l\s+(?P<label>(?:"([^"]+)")|([\w_:;]+)))?'
-    r'(?:\s+t\s+"(?P<tooltip>[^"]+)")?'
-    r"(?:\s+\+DISABLED)?"
-    r"(?:\s+\+INVISIBLE)?"
-    r"(?:\s+-STARTLINE)?"
-    r"(?:\s+M\s+\{\s*(?P<enum_items>[^}]+)\s*\})?"
-    r"(?:\s+-STARTLINE)?"
-    r"(?:\s+\+INVISIBLE)?"
-    r"(?:\s+T\s+(?P<value>[\w_]+))?"
-    r"\s*\}"
-)
 
-
-_SUPPORTED_KNOB_TYPES = (
-    1,
-    2,
-    3,
-    4,
-    6,
-    7,
-    8,
-    26,
-)
+_DEFAULT_KNOB_VALUES = {1: "", 2: "", 3: 0, 4: "", 7: 0, 6: False, 26: ""}
 # https://learn.foundry.com/nuke/developers/63/ndkdevguide/knobs-and-handles/knobtypes.html#knobs-knobtypes-text-knob
+
+_KEYWORDS = (
+    "-INVISIBLE",
+    "+INVISIBLE",
+    "-DISABLED",
+    "+DISABLED",
+    "-NO_ANIMATION",
+    "+NO_ANIMATION",
+    "-SLIDER",
+    "+SLIDER",
+    "-STORE_INTEGER",
+    "+STORE_INTEGER",
+    "-STARTLINE",
+    "+STARTLINE",
+    "-HIDDEN",
+    "+HIDDEN",
+)
+
+
+class LexType(Enum):
+    Literal = auto()
+    Delimiter = auto()
+    Keyword = auto()
+
+
+@dataclass
+class Tok:
+    lex: LexType
+    value: str
+
+
+def lexer(string) -> Generator[Tok, None, None]:
+    i = 0
+    n = len(string)
+
+    def is_whitespace(c):
+        return c in " \t\n\r"
+
+    def is_delimiter(c):
+        return c in "{}"
+
+    while i < n:
+        c = string[i]
+
+        # Skip whitespace
+        if is_whitespace(c):
+            i += 1
+            continue
+
+        # Delimiters
+        if is_delimiter(c):
+            yield Tok(LexType.Delimiter, c)
+            i += 1
+            continue
+
+        # Quoted string
+        if c == '"':
+            i += 1
+            start = i
+            while i < n and string[i] != '"':
+                i += 1
+            yield Tok(LexType.Literal, string[start:i])
+            i += 1  # skip closing quote
+            continue
+
+        # Words (literals or keywords)
+        start = i
+        while i < n and not is_whitespace(string[i]) and not is_delimiter(string[i]):
+            i += 1
+        word = string[start:i]
+
+        if word in _KEYWORDS:
+            yield Tok(LexType.Keyword, word)
+        else:
+            # Try to convert to int or float
+            try:
+                value = int(word)
+            except ValueError:
+                try:
+                    value = float(word)
+                except ValueError:
+                    value = word  # fallback to string
+
+            yield Tok(LexType.Literal, value)
 
 
 class Node:
@@ -156,7 +219,11 @@ class Node:
 
     def nodeName(self) -> str:
         """Name of node. Used in gui."""
-        return self._knobs.get("name", "") if self.Class() != "Root" else "Root"
+        return (
+            self._knobs.get("name", "")
+            if self.Class() not in ROOT_NODE_CLASSES
+            else "Root"
+        )
 
     def fullName(self) -> str:
         node = self
@@ -167,7 +234,7 @@ class Node:
         return ".".join(path)
 
     def _addChild(self, child: Node) -> None:
-        """Add child to node. This should only be called from the nk_parser.
+        """Add child to node. This should only be called from the parser.
 
         Args:
             child: Child node to add.
@@ -207,7 +274,7 @@ class Node:
         return self._class == "gizmo" or self._is_gizmo
 
     def setInput(self, i: int, node: Node) -> None:
-        """Add input to node. This should only be called from the nk_parser.
+        """Add input to node. This should only be called from the parser.
 
         Args:
             i: Input index.
@@ -299,7 +366,10 @@ class Node:
         for child in self.children():
             yield from travers(child)
 
-    def allNodes(self, filters: Optional[Union[str,Tuple[str, ...]]] = tuple()) -> Tuple[Node, ...]:
+    def allNodes(
+        self, filters: Optional[Union[str, Tuple[str, ...]]] = tuple()
+    ) -> Tuple[Node, ...]:
+
         """Get all child nodes.
 
         Args:
@@ -361,25 +431,38 @@ def parseUserKnob(knobs: Dict[str, Any], string: str) -> None:
         string: Command to parse.
 
     """
-    match = _USER_KNOB_RE.search(string)
-    if not match:
-        return
+    options = {}
+    parse_menu_items = False
+    last_tok = None
 
-    groups = match.groupdict()
-    knob_type = int(groups.get("type", 0))
-    knob_name = groups.get("name")
-    if knob_type not in _SUPPORTED_KNOB_TYPES:
-        return
-    if knob_type in (1, 2, 26):
-        knobs[knob_name] = groups.get("value") or ""
-    elif knob_type in (3, 6):
-        knobs[knob_name] = int(groups.get("value") or 0)
-    elif knob_type == 4:
-        items_string = groups.get("enum_items")
-        knobs[knob_name] = re.split(r"\s+", items_string)[0]
+    for i, tok in enumerate(lexer(string)):
+        if parse_menu_items:
+            if tok.lex == LexType.Delimiter:
+                parse_menu_items = False
+                continue
+            options.setdefault("value", tok.value)
+            options.setdefault("menuitems", []).append(tok.value)
+        elif isinstance(tok.value, int):
+            options.setdefault("knob_type", tok.value)
+        elif last_tok and last_tok.value == "l":
+            options.setdefault("label", tok.value)
+        elif last_tok and last_tok.value == "M" and tok.lex == LexType.Delimiter:
+            parse_menu_items = True
+        elif last_tok and last_tok.value == "T":
+            options["value"] = tok.value
+        elif i == 2 and tok.lex == LexType.Literal:
+            options.setdefault("name", tok.value)
 
-    elif knob_type in (7, 8):
-        knobs[knob_name] = float(groups.get("value") or 0)
+        last_tok = tok
+
+    if "value" not in options:
+        if options["knob_type"] in _DEFAULT_KNOB_VALUES:
+            options["value"] = _DEFAULT_KNOB_VALUES[options["knob_type"]]
+        else:
+            return
+
+    name = options["name"]
+    knobs[name] = options["value"]
 
 
 def _parseNk(file_path: str, gizmos: Optional[dict] = None) -> Node:
@@ -395,7 +478,7 @@ def _parseNk(file_path: str, gizmos: Optional[dict] = None) -> Node:
     """
     gizmos = gizmos or {}
 
-    with open(file_path) as file:
+    with open(file_path, encoding="utf8") as file:
         lines = iter(file.readlines())
 
     main_stack = Stack[Node]()
