@@ -35,6 +35,7 @@ _PUSH_RE = re.compile(r"push \$(?P<key>\w+)")
 _VERSION_RE = re.compile(r"version[ ]+(?P<version>[\d\.]+([ ]v\d)?)")
 _CLONE_RE = re.compile(r"clone \$(?P<key>\w+)\s\{")
 _NODE_KNOB_RE = re.compile(r"^\s*(?P<key>[\w_\.]+)[ ]+(?P<value>(:?\"|\w|\{|-|/).*)")
+_BINARY_RE = re.compile(r"[0-9a-fA-F;]{100,}")
 
 
 _GROUP_NODE_CLASSES = ("Group", "Gizmo", "VariableGroup")
@@ -497,6 +498,13 @@ def _parseNk(file_path: str, gizmos: Optional[dict] = None) -> Node:
         if "push 0" in line:
             main_stack.push(None)
             continue
+
+        elif _BINARY_RE.search(line):
+            # Some lines contain extremely long character sequences, making regex processing very slow
+            # (e.g., knob render options from Nuke OpticalFlares).
+            # These lines are skipped since they are not needed for graph creation.
+            continue
+
         elif _BRANCH_STACK_RE.search(line):  # set stack-key
             key = _BRANCH_STACK_RE.search(line).group("key")
             if key in "cut_paste_input":
